@@ -414,6 +414,8 @@ let replRedo=[];        // 詞彙取代：被復原的步驟，供「下一步�
 let selOpen=false;      // 連續勾選合併成同一步
 let srcSeq=0;
 let runCount=0;
+let shownPara=[],shownClause=[]; // 目前畫面上篩選後的組別，「一次設定」只作用在這些
+let simMode='all'; // 顯示：all 全部／exact 完全相同／similar 相似
 let srcMode='all',srcSel=new Set(); // 比對範圍：all＝全部重複；cross＝只看勾選檔案彼此之間的重複
 let saved=[],savedSeq=0,lastDel=null; // 已存的結果 {id,name,text,time}
 let curTopic=null; // 從提取結果進來時的主題，用來預設存檔名稱
@@ -1033,7 +1035,7 @@ function renderPanel(){
     const every=f=>list.every(g=>g.members.every(m=>f(g,m)));
     const st=every((g,m)=>arr[m].keep)?'all':every((g,m)=>!arr[m].keep)?'none':every((g,m)=>arr[m].keep===isMain(g,m))?'main':'';
     const b=(k,t,c)=>`<button type="button" class="small${c?' '+c:''}" data-gset="${k}" aria-pressed="${st===k}">${t}</button>`;
-    return `<div class="rtop gseg"><span class="gtot">全部 ${list.length} 組・${n} ${unit}，一次設定：</span>${b('all','都保留')}${b('main','只留主版本')}${b('none','都刪除','gdel')}</div>`;
+    return `<div class="rtop gseg"><span class="gtot">${srcMode==='cross'||(simMode!=='all'&&!BIG)?`目前顯示的 ${list.length} 組・${n} ${unit}，一次設定（只會改這些）：`:`全部 ${list.length} 組・${n} ${unit}，一次設定：`}</span>${b('all','都保留')}${b('main','只留主版本')}${b('none','都刪除','gdel')}</div>`;
   };
   // 只看跟某個檔案有關的重複：這個檔案和其他檔案之間重複的組別
   const srcOf=(g,arr)=>g.members.map(m=>arr===paras?paras[m].src:paras[clauses[m].pid].src);
@@ -1055,8 +1057,18 @@ function renderPanel(){
   };
 
 
-  if(tab==='para'){const L=fil(groups,paras);h=srcBox(groups,L)+allBox(L,paras,'段',paraMain)+paged(L,renderParaGroup);}
-  else if(tab==='clause'){const L=fil(cgroups,clauses);h=srcBox(cgroups,L)+allBox(L,clauses,'處',clauseMain)+paged(L,renderClauseGroup);}
+  // 依類型篩選：完全相同（可放心一次處理）／相似（要人工確認）
+  const gtype=(g,arr)=>arr===paras?g.type:(g.members.every(m=>m===g.keeper||clauses[m].rel.type==='exact')?'exact':'similar');
+  const simf=(list,arr)=>simMode==='all'||BIG?list:list.filter(g=>gtype(g,arr)===simMode);
+  const simBox=(list,arr)=>{
+    if(BIG||!list.length) return '';
+    const ne=list.filter(g=>gtype(g,arr)==='exact').length,ns=list.length-ne,t=Math.round(S.T*100);
+    const b=(k,txt)=>`<button type="button" class="small" data-simf="${k}" aria-pressed="${simMode===k}">${txt}</button>`;
+    return `<div class="rtop gseg"><span class="gtot">顯示：</span>${b('all',`全部（${list.length}）`)}${b('exact',`完全相同 100%（${ne}）`)}${b('similar',`相似 ${t}～99%（${ns}）`)}`+
+      `<p class="hint" style="margin:0;width:100%">完全相同＝100%，一字不差（標點和空白不算差異），可以放心一次處理。<br>相似＝${t}%～99%，有部分文字不同，要人工確認；下限 ${t}% 就是第 2 步的「相似門檻」。「已包含在主版本」的段落也算在這裡。</p></div>`;
+  };
+  if(tab==='para'){const L0=fil(groups,paras),L=simf(L0,paras);shownPara=L;h=srcBox(groups,L0)+simBox(L0,paras)+allBox(L,paras,'段',paraMain)+paged(L,renderParaGroup);}
+  else if(tab==='clause'){const L0=fil(cgroups,clauses),L=simf(L0,clauses);shownClause=L;h=srcBox(cgroups,L0)+simBox(L0,clauses)+allBox(L,clauses,'處',clauseMain)+paged(L,renderClauseGroup);}
   else if(tab==='repl') h=renderRepl();
   else h=paged(issues,renderIssue);
   if(skipped.exactClause&&tab==='clause') h=`<p class="legend" style="margin-top:0">內容較多：這裡只列完全相同、至少 ${EXACT_MIN} 個字的片段，<b>預設全部保留</b>；要刪除的請取消勾選，或按「只留主版本」。</p>`+(h||'<div class="empty">沒有找到。</div>');
@@ -1108,6 +1120,7 @@ $('panel').addEventListener('change',e=>{
   }
 });
 $('panel').addEventListener('click',e=>{
+  const sf=e.target.closest('[data-simf]');if(sf){simMode=sf.dataset.simf;listPage.para=0;listPage.clause=0;renderPanel();return;}
   if(e.target.dataset.lp){listPage[tab]+=e.target.dataset.lp==='next'?1:-1;renderPanel();$('tabs').scrollIntoView({block:'start'});return;}
   const wt=e.target.closest('[data-rw]');
   if(wt){replWord=+wt.dataset.rw;replPage=0;renderPanel();return;}
@@ -1115,9 +1128,9 @@ $('panel').addEventListener('click',e=>{
   const gset=e.target.dataset.gset;
   if(gset){
     const pick=(isMain,g,m)=>gset==='all'?true:gset==='none'?false:isMain(g,m);
-    if(tab==='para'){for(const g of groups) for(const m of g.members) paras[m].keep=pick(paraMain,g,m);refreshAfterParaChange();}
+    if(tab==='para'){for(const g of shownPara) for(const m of g.members) paras[m].keep=pick(paraMain,g,m);refreshAfterParaChange();}
     else{
-      for(const g of cgroups) for(const m of g.members){const c=clauses[m];c.keep=pick(clauseMain,g,m);clauseOverride.set(`${c.pid}:${c.s}`,c.keep);}
+      for(const g of shownClause) for(const m of g.members){const c=clauses[m];c.keep=pick(clauseMain,g,m);clauseOverride.set(`${c.pid}:${c.s}`,c.keep);}
       renderAll();
     }
     return;
@@ -1719,7 +1732,7 @@ function resetAll(){
     replSel=new Set();replUndo=[];replRedo=[];selOpen=false;replWord=0;replPage=0;exData=null;
     autoOut='';outDirty=false;outSaved=null;$('outPreview').value='';
     runCount=0;$('runNo').textContent='';$('status').textContent='';showMsg('');
-    curTopic=null;contName=null;exFlow=null;srcMode='all';srcSel=new Set();$('savedMsg').textContent='';$('saveName').value='';$('saveMsg').textContent='';renderSaved();
+    curTopic=null;contName=null;exFlow=null;simMode='all';srcMode='all';srcSel=new Set();$('savedMsg').textContent='';$('saveName').value='';$('saveMsg').textContent='';renderSaved();
     $('rerunBar').hidden=true;$('pasteNote').hidden=true;$('results').hidden=true;$('outputCard').hidden=true;
     document.querySelectorAll('.cwrap textarea').forEach(t=>t.dispatchEvent(new Event('input',{bubbles:true})));
   }finally{restoring=false;}
