@@ -213,8 +213,8 @@ footer{margin-top:24px;color:var(--muted);font-size:.8rem;text-align:center}
 <div class="wrap">
 <header>
   <h1>筆記重複整理器 <span class="ver">V2</span></h1>
-  <p>所有處理都在你的電腦上進行，不連網、不上傳任何內容，也不經過任何 AI。</p>
-  <p class="altver">要在手機上用？<a href="https://7755mutants.github.io/NoteTidy/" target="_blank" rel="noopener">打開網頁版</a>（不用下載，連結打開就能用）</p>
+  <p>所有處理都在你的裝置上進行，內容不會上傳，也不經過任何 AI。</p>
+  <p class="altver">想不連網使用？<a href="#" id="dlSelf">下載離線版（.html）</a>（存在電腦裡，打開就能用）<span id="selfMsg" class="hint"></span></p>
   <p class="byline">開發者：突變體（7755 角色創作者）・非官方工具・回報問題或建議：<a href="https://line.me/R/ti/p/@736mdqba" target="_blank" rel="noopener">LINE @736mdqba</a></p>
   <p class="byline" id="saveState">自動暫存：開啟（內容只存在這台電腦的瀏覽器裡）</p>
 </header>
@@ -357,7 +357,7 @@ footer{margin-top:24px;color:var(--muted);font-size:.8rem;text-align:center}
   <div class="row"><span id="savedMsg" class="hint"></span></div>
 </div>
 
-<footer>筆記重複整理器 V2・離線版・開發者：突變體（7755 角色創作者）・非官方工具<span class="contact">回報問題或建議：<a href="https://line.me/R/ti/p/@736mdqba" target="_blank" rel="noopener">LINE @736mdqba</a></span></footer>
+<footer>筆記重複整理器 V2・網頁版・開發者：突變體（7755 角色創作者）・非官方工具<span class="contact">回報問題或建議：<a href="https://line.me/R/ti/p/@736mdqba" target="_blank" rel="noopener">LINE @736mdqba</a></span></footer>
 </div>
 
 <script>
@@ -1791,6 +1791,18 @@ $('savedCard').addEventListener('click',e=>{
     $('savedMsg').innerHTML=`已刪除「${esc(x.name)}」 <button class="small" data-sv="undel">復原</button>`;
   }
 });
+// 網頁版：下載離線版＝把這個頁面本身存下來，並把頁首文字換回離線版
+{const ds=$('dlSelf');if(ds) ds.addEventListener('click',async e=>{
+  e.preventDefault();const m=$('selfMsg');m.textContent='';
+  try{
+    const r=await fetch(location.href.split('#')[0],{cache:'no-store'});if(!r.ok) throw 0;
+    let t=await r.text();
+    t=t.replace("所有處理都在你的裝置上進行，內容不會上傳，也不經過任何 AI。","所有處理都在你的電腦上進行，不連網、不上傳任何內容，也不經過任何 AI。").replace("<p class=\"altver\">想不連網使用？<a href=\"#\" id=\"dlSelf\">下載離線版（.html）</a>（存在電腦裡，打開就能用）<span id=\"selfMsg\" class=\"hint\"></span></p>","<p class=\"altver\">要在手機上用？<a href=\"https://7755mutants.github.io/NoteTidy/\" target=\"_blank\" rel=\"noopener\">打開網頁版</a>（不用下載，連結打開就能用）</p>").replace('筆記重複整理器 V2・網頁版・開發者','筆記重複整理器 V2・離線版・開發者');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/html'}));a.download='筆記重複整理器_V2.html';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }catch(err){m.textContent='　下載失敗，請稍後再試。';}
+});}
+
 (function initRestore(){
   let d=null;
   try{d=JSON.parse(localStorage.getItem(STORE_KEY)||localStorage.getItem(OLD_KEY)||'null');}catch(e){d=null;}
